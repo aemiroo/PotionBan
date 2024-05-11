@@ -1,0 +1,5 @@
+name: PotionBan
+version: 1.0.0
+main: com.oorimea.potionban.PotionBanPlugin
+author: aemiroo
+api-version: 1.20

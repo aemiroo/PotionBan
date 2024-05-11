@@ -1,0 +1,10 @@
+banned-effects:
+
+# WARNING: THIS PLUGIN BANS ALL SPLASH AND LINGERING POTION SO IT ONLY MAKES CONSUMABLE POTION THE ONLY USABLE ONES.
+#
+# To ban a specific effect for potion, all you have to do is do the following:
+# banned-effects:
+#   - INCREASE_DAMAGE = STRENGTH
+#   - INVISIBILITY = INVISIBILITY
+#
+# LIST OF POTION EFFECT TYPES CAN BE FOUND HERE: https://hub.spigotmc.org/javadocs/spigot/org/bukkit/potion/PotionEffectType.html
