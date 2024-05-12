@@ -50,7 +50,7 @@ public class PotionListener implements Listener {
     @EventHandler
     public void onPotionSplash(PotionSplashEvent event) {
         ItemStack potion = event.getEntity().getItem();
-        PotionMeta potionMeta = (PotionMeta) potion.getItemMeta(); // Get the potion meta correctly.
+        PotionMeta potionMeta = (PotionMeta) potion.getItemMeta();
         if (checkPotionForBannedEffects(potionMeta)) {
             event.setCancelled(true);
             for (LivingEntity entity : event.getAffectedEntities()) {
@@ -124,7 +124,7 @@ public class PotionListener implements Listener {
             }
         }
 
-        PotionEffectType baseEffect = potionMeta.getBasePotionData().getType().getEffectType(); // Updated line
+        PotionEffectType baseEffect = potionMeta.getBasePotionData().getType().getEffectType();
         return baseEffect != null && plugin.getBannedEffects().contains(baseEffect);
     }
 
