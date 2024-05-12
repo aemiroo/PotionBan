@@ -7,7 +7,6 @@ import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.entity.LingeringPotionSplashEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.PotionMeta;
@@ -30,13 +29,18 @@ public class PotionListener implements Listener {
     }
 
     @EventHandler
-    public void onPotionConsume(PlayerItemConsumeEvent event) {
-        ItemStack item = event.getItem();
-        PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
-        if (checkPotionForBannedEffects(potionMeta.getBasePotionType())) {
-            event.getPlayer().sendMessage("You are not allowed to consume this potion, it has a banned effect!");
-            event.setCancelled(true);
-            removePotionEffects(event.getPlayer(), potionMeta);
+    public void onPotionConsume(PlayerInteractEvent event) {
+        if (event.getAction().name().contains("RIGHT_CLICK") &&
+                event.getHand() == EquipmentSlot.HAND || event.getHand() == EquipmentSlot.OFF_HAND &&
+                event.getItem() != null) {
+
+            ItemStack item = event.getItem();
+            Material potionType = item.getType();
+
+            if (potionType == Material.POTION) {
+                event.getPlayer().sendMessage("You are not allowed to consume this potion as it is banned from the server!");
+                event.setCancelled(true);
+            }
         }
     }
 
@@ -49,16 +53,13 @@ public class PotionListener implements Listener {
             ItemStack item = event.getItem();
             Material potionType = item.getType();
 
-            if (potionType == Material.SPLASH_POTION || potionType == Material.LINGERING_POTION) {
-                event.getPlayer().sendMessage("You cannot throw splash or lingering potions!");
+            if (potionType == Material.SPLASH_POTION) {
+                event.getPlayer().sendMessage("You are not allowed to throw splash potions!");
                 event.setCancelled(true);
-            } else if (potionType.toString().endsWith("_POTION")) {
-
-                PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
-                if (checkPotionForBannedEffects(potionMeta.getBasePotionType())) {
-                    event.getPlayer().sendMessage("You're not allowed to throw this potion, as it is banned on the server.");
-                    event.setCancelled(true);
-                }
+            }
+            if (potionType == Material.LINGERING_POTION) {
+                event.getPlayer().sendMessage("You are not allowed to throw lingering potions!");
+                event.setCancelled(true);
             }
         }
     }
@@ -129,7 +130,7 @@ public class PotionListener implements Listener {
 
         if (plugin.getBannedEffects().contains(effect.getType())) {
             event.setCancelled(true);
-            entity.sendMessage("You are immune to the banned potion effect: " + effect.getType().getName());
+            entity.sendMessage("You are immune to the banned potion effect");
         }
     }
 
