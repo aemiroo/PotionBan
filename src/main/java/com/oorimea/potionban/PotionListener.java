@@ -1,12 +1,10 @@
 package com.oorimea.potionban;
 
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
+import org.bukkit.event.entity.LingeringPotionSplashEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
@@ -16,11 +14,9 @@ import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.Material;
+import org.bukkit.potion.PotionType;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class PotionListener implements Listener {
 
@@ -37,8 +33,8 @@ public class PotionListener implements Listener {
     public void onPotionConsume(PlayerItemConsumeEvent event) {
         ItemStack item = event.getItem();
         PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
-        if (checkPotionForBannedEffects(potionMeta)) {
-            event.getPlayer().sendMessage("You cannot consume this potion, it has a banned effect!");
+        if (checkPotionForBannedEffects(potionMeta.getBasePotionType())) {
+            event.getPlayer().sendMessage("You are not allowed to consume this potion, it has a banned effect!");
             event.setCancelled(true);
             removePotionEffects(event.getPlayer(), potionMeta);
         }
@@ -56,6 +52,13 @@ public class PotionListener implements Listener {
             if (potionType == Material.SPLASH_POTION || potionType == Material.LINGERING_POTION) {
                 event.getPlayer().sendMessage("You cannot throw splash or lingering potions!");
                 event.setCancelled(true);
+            } else if (potionType.toString().endsWith("_POTION")) {
+
+                PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
+                if (checkPotionForBannedEffects(potionMeta.getBasePotionType())) {
+                    event.getPlayer().sendMessage("You're not allowed to throw this potion, as it is banned on the server.");
+                    event.setCancelled(true);
+                }
             }
         }
     }
@@ -64,7 +67,7 @@ public class PotionListener implements Listener {
     public void onPotionSplash(PotionSplashEvent event) {
         ItemStack potion = event.getEntity().getItem();
         PotionMeta potionMeta = (PotionMeta) potion.getItemMeta();
-        if (checkPotionForBannedEffects(potionMeta)) {
+        if (checkPotionForBannedEffects(potionMeta.getBasePotionType())) {
             event.setCancelled(true);
             for (LivingEntity entity : event.getAffectedEntities()) {
                 if (entity instanceof Player player) {
@@ -76,11 +79,36 @@ public class PotionListener implements Listener {
     }
 
     @EventHandler
+    public void onLingeringPotionSplash(LingeringPotionSplashEvent event) {
+        AreaEffectCloud cloud = event.getAreaEffectCloud();
+        if (!cloud.isDead()) {
+            ThrownPotion potion = event.getEntity();
+
+            if (!potion.getEffects().isEmpty()) {
+                Optional<PotionEffect> firstEffect = potion.getEffects().stream().findFirst();
+                PotionType potionType = PotionType.getByEffect(firstEffect.get().getType()); // Get PotionType from the effect
+
+                if (checkPotionForBannedEffects(potionType)) {
+                    event.setCancelled(true);
+                    removeLingeringCloud(event);
+                    for (Entity entity : cloud.getNearbyEntities(cloud.getRadius(), cloud.getRadius(), cloud.getRadius())) {
+                        if (entity instanceof Player player) {
+                            player.sendMessage("You were affected by a banned potion!");
+
+                            player.removePotionEffect((PotionEffectType) potion.getEffects());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @EventHandler
     public void onPotionApply(EntityPotionEffectEvent event) {
         LivingEntity entity = (LivingEntity) event.getEntity();
         PotionEffect effect = event.getNewEffect();
 
-        if (!(entity instanceof Player)) return;
+        if (!(entity instanceof Player) || effect == null) return;
 
         EntityPotionEffectEvent.Cause cause = event.getCause();
 
@@ -105,15 +133,15 @@ public class PotionListener implements Listener {
         }
     }
 
-    private boolean checkPotionForBannedEffects(PotionMeta potionMeta) {
-        if (potionMeta == null) return false;
-        for (PotionEffect effect : potionMeta.getCustomEffects()) {
+    private boolean checkPotionForBannedEffects(PotionType potionType) {
+        if (potionType == null) return false;
+        for (PotionEffect effect : potionType.getPotionEffects()) {
             if (plugin.getBannedEffects().contains(effect.getType())) {
                 return true;
             }
         }
-        PotionEffectType baseEffect = potionMeta.getBasePotionData().getType().getEffectType();
-        return baseEffect != null && plugin.getBannedEffects().contains(baseEffect);
+        PotionEffectType baseEffect = (PotionEffectType) potionType.getPotionEffects();
+        return plugin.getBannedEffects().contains(baseEffect);
     }
 
     private void removePotionEffects(LivingEntity entity, ItemStack potion) {
@@ -128,8 +156,11 @@ public class PotionListener implements Listener {
             entity.removePotionEffect(effect.getType());
         }
         PotionEffectType baseEffect = potionMeta.getBasePotionData().getType().getEffectType();
-        if (baseEffect != null) {
-            entity.removePotionEffect(baseEffect);
-        }
+        entity.removePotionEffect(baseEffect);
+    }
+
+    private void removeLingeringCloud(LingeringPotionSplashEvent event) {
+        AreaEffectCloud cloud = event.getAreaEffectCloud();
+        cloud.remove();
     }
 }
