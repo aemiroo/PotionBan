@@ -12,8 +12,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.Material;
-import org.bukkit.potion.PotionType;
 
 import java.util.*;
 
@@ -29,37 +27,22 @@ public class PotionListener implements Listener {
     }
 
     @EventHandler
-    public void onPotionConsume(PlayerInteractEvent event) {
-        if (event.getAction().name().contains("RIGHT_CLICK") &&
-                event.getHand() == EquipmentSlot.HAND || event.getHand() == EquipmentSlot.OFF_HAND &&
-                event.getItem() != null) {
+    public void onPotionInteraction(PlayerInteractEvent event) {
+        ItemStack item = event.getItem();
 
-            ItemStack item = event.getItem();
-            Material potionType = item.getType();
+        if (item != null && item.getType().toString().endsWith("_POTION")) {
+            PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
 
-            if (potionType == Material.POTION) {
-                event.getPlayer().sendMessage("You are not allowed to consume this potion as it is banned from the server!");
+            if (checkPotionForBannedEffects(potionMeta)
+                    && event.getAction().name().contains("RIGHT_CLICK")
+                    && event.getHand() == EquipmentSlot.HAND) {
+
+                event.getPlayer().sendMessage("You're not allowed to use this potion as it is banned from the server.");
                 event.setCancelled(true);
-            }
-        }
-    }
 
-    @EventHandler
-    public void onPotionThrow(PlayerInteractEvent event) {
-        if (event.getAction().name().contains("RIGHT_CLICK") &&
-                event.getHand() == EquipmentSlot.HAND &&
-                event.getItem() != null) {
-
-            ItemStack item = event.getItem();
-            Material potionType = item.getType();
-
-            if (potionType == Material.SPLASH_POTION) {
-                event.getPlayer().sendMessage("You are not allowed to throw splash potions!");
-                event.setCancelled(true);
-            }
-            if (potionType == Material.LINGERING_POTION) {
-                event.getPlayer().sendMessage("You are not allowed to throw lingering potions!");
-                event.setCancelled(true);
+                if (!event.getAction().name().contains("INTERACT")) {
+                    removePotionEffects(event.getPlayer(), potionMeta);
+                }
             }
         }
     }
@@ -67,8 +50,8 @@ public class PotionListener implements Listener {
     @EventHandler
     public void onPotionSplash(PotionSplashEvent event) {
         ItemStack potion = event.getEntity().getItem();
-        PotionMeta potionMeta = (PotionMeta) potion.getItemMeta();
-        if (checkPotionForBannedEffects(potionMeta.getBasePotionType())) {
+        PotionMeta potionMeta = (PotionMeta) potion.getItemMeta(); // Get the potion meta correctly.
+        if (checkPotionForBannedEffects(potionMeta)) {
             event.setCancelled(true);
             for (LivingEntity entity : event.getAffectedEntities()) {
                 if (entity instanceof Player player) {
@@ -85,19 +68,18 @@ public class PotionListener implements Listener {
         if (!cloud.isDead()) {
             ThrownPotion potion = event.getEntity();
 
-            if (!potion.getEffects().isEmpty()) {
-                Optional<PotionEffect> firstEffect = potion.getEffects().stream().findFirst();
-                PotionType potionType = PotionType.getByEffect(firstEffect.get().getType()); // Get PotionType from the effect
+            ItemStack potionItem = potion.getItem();
 
-                if (checkPotionForBannedEffects(potionType)) {
-                    event.setCancelled(true);
-                    removeLingeringCloud(event);
-                    for (Entity entity : cloud.getNearbyEntities(cloud.getRadius(), cloud.getRadius(), cloud.getRadius())) {
-                        if (entity instanceof Player player) {
-                            player.sendMessage("You were affected by a banned potion!");
+            PotionMeta potionMeta = (PotionMeta) potionItem.getItemMeta();
 
-                            player.removePotionEffect((PotionEffectType) potion.getEffects());
-                        }
+            if (checkPotionForBannedEffects(potionMeta)) {
+                event.setCancelled(true);
+                removeLingeringCloud(event);
+
+                for (Entity entity : cloud.getNearbyEntities(cloud.getRadius(), cloud.getRadius(), cloud.getRadius())) {
+                    if (entity instanceof Player player) {
+                        player.sendMessage("You were affected by a banned potion!");
+                        removePotionEffects(player, potionMeta);
                     }
                 }
             }
@@ -130,19 +112,20 @@ public class PotionListener implements Listener {
 
         if (plugin.getBannedEffects().contains(effect.getType())) {
             event.setCancelled(true);
-            entity.sendMessage("You are immune to the banned potion effect");
+            entity.sendMessage("You're not allowed to use this potion as it is banned from the server.");
         }
     }
 
-    private boolean checkPotionForBannedEffects(PotionType potionType) {
-        if (potionType == null) return false;
-        for (PotionEffect effect : potionType.getPotionEffects()) {
+    private boolean checkPotionForBannedEffects(PotionMeta potionMeta) {
+        if (potionMeta == null) return false;
+        for (PotionEffect effect : potionMeta.getCustomEffects()) {
             if (plugin.getBannedEffects().contains(effect.getType())) {
                 return true;
             }
         }
-        PotionEffectType baseEffect = (PotionEffectType) potionType.getPotionEffects();
-        return plugin.getBannedEffects().contains(baseEffect);
+
+        PotionEffectType baseEffect = potionMeta.getBasePotionData().getType().getEffectType(); // Updated line
+        return baseEffect != null && plugin.getBannedEffects().contains(baseEffect);
     }
 
     private void removePotionEffects(LivingEntity entity, ItemStack potion) {
@@ -156,6 +139,7 @@ public class PotionListener implements Listener {
         for (PotionEffect effect : potionMeta.getCustomEffects()) {
             entity.removePotionEffect(effect.getType());
         }
+
         PotionEffectType baseEffect = potionMeta.getBasePotionData().getType().getEffectType();
         entity.removePotionEffect(baseEffect);
     }
